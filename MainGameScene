@@ -1,3 +1,11 @@
+For this game I had to do a lot of research and compile features from different places. The main concept was developed with information from the Coursera course content but supplemented with features found on LinkedIn Learning.
+It was difficult to make everything work as you need to use SpriteKit to create the layout, define tags for all the objects, and make them work in the code so that they can or cannot collide with each other.
+I am proud of putting this together but also connecting the visual aspect of the Waterfall and Volcano which do nothing but add ambiance with the particle effects.
+GameCenter is no longer active on Apple. The game doesn’t function as originally after iOS 10. I plan on redoing this in Unity Game Engine where it will take less time and code to create.
+
+Waterfall and Volcano Code shows is on Line 161
+
+------------------------------------------------
 
 //Main Game File
 //  GameScene.swift
