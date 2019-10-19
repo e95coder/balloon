@@ -1,0 +1,923 @@
+
+//Main Game File
+//  GameScene.swift
+//
+//  Created by Enrique Gonzalez on 6/14/16.
+//  Copyright (c) 2016 Enrique Gonzalez. All rights reserved.
+//
+
+import SpriteKit
+import AVFoundation
+import AVKit
+import CoreMotion  //for Accelerometer/Gyroscope
+import GameKit
+
+
+
+//Wall mask (bit shifting) Up to 32 categories (bitshift of 0-31)
+//Masks needed for identifying objects and setting what can and cannot collide with each other
+let wallMask:UInt32 = 0x1 << 0 //1  wall
+let ballMask:UInt32 = 0x1 << 1 //2 ball in the Shooter.sks
+let rightBlockMask:UInt32 = 0x1 << 2 //4  Right block platform
+let leftBlockMask:UInt32 = 0x1 << 3 //8 left cone character, Left block platform
+let groundMask:UInt32 = 0x1 << 4 //16 new ground mask
+let mainCharMask:UInt32 = 0x1 << 5 //32 main character
+let blueCoinMask:UInt32 = 0x1 << 6 //64 blue coin
+let whiteCoinMask:UInt32 = 0x1 << 7 // 128 white coin (previously goldCoinMask
+let redCoinMask:UInt32 = 0x1 << 8 // 256 red coin
+let gemMask:UInt32 = 0x1 << 9 //512 gems
+
+
+
+class GameScene: SKScene, SKPhysicsContactDelegate {
+    //Used for transitioning to GameOver
+       
+    //Background Music
+    var backgroundMusic:SKAudioNode!
+    
+    //Sprites Established: main character, platform elements, and moving objects
+        var plane:SKSpriteNode!
+    var prize1:SKSpriteNode?
+    var boo:SKSpriteNode!
+    var goldCoinWhite:SKSpriteNode!
+    var goldCoinRed:SKSpriteNode!
+    var goldCoinBlue:SKSpriteNode!
+    var ball:SKSpriteNode!
+    var middlePlatform:SKSpriteNode!
+    var volcanoTip:SKSpriteNode!
+    var planeRightTexture:SKTexture!
+    var planeLeftTexture:SKTexture!
+    var gem:SKSpriteNode!
+    
+    
+    
+    //For Accelerometer Feature 
+    var motionManager = CMMotionManager()
+
+    
+    //Touch For Shooter Portion
+    var touchLocation:CGPoint = CGPoint.zero
+    
+    //Score Variables
+    var scoreWhite = Int()
+    var scoreBlue = Int()
+    var scoreRed = Int()
+    var score = Int()
+    var scoreRedGem = Int()
+    
+    //Used for positions of Green boxes, x and y variables
+    var positionX:CGPoint!
+    var positionY:CGPoint!
+    
+    
+    
+
+    override func didMove(to view: SKView) {
+        /* Setup your scene here */
+//Starts scene with score of zero all around
+        scoreWhite = 0
+        scoreBlue = 0
+        scoreRed = 0
+        score = scoreWhite + scoreBlue + scoreRed
+        scoreRedGem = 0
+        
+
+        //Instantiate background Music  
+        
+        //This works: if Sound is Enabled in Settings Play sound, different file
+        if UserDefaults.standard.bool(forKey: "enabled_preference_sound")  {
+            
+            let backgroundMusic = SKAudioNode(fileNamed: "POL-find-the-exit-short.wav")
+            backgroundMusic.autoplayLooped = true
+            self.addChild(backgroundMusic)
+            
+            //preloading for sound effect sounds, this is necessary so sound is ready otherwise sound has to load late. From demo on LinkedIn Learning course
+            do {
+                let sounds = ["Pickup_Coin_1"]
+                for sound in sounds {
+                    let player = try AVAudioPlayer(contentsOf: NSURL(fileURLWithPath: Bundle.main.path(forResource: sound, ofType: "wav")!) as URL)
+                    player.prepareToPlay()
+                }
+                
+            } catch {
+                
+                
+            }
+            
+            
+            
+            
+        }
+        
+        
+        
+        
+        
+        
+        
+        //Display Sprites here 
+        plane = self.childNode(withName: "plane") as! SKSpriteNode
+        prize1 = self.childNode(withName: "prize1") as? SKSpriteNode
+        boo = self.childNode(withName: "boo") as! SKSpriteNode
+        goldCoinWhite = self.childNode(withName: "goldCoinWhite") as! SKSpriteNode
+        goldCoinRed = self.childNode(withName: "goldCoinRed") as! SKSpriteNode
+        goldCoinBlue = self.childNode(withName: "goldCoinBlue") as! SKSpriteNode
+        ball = self.childNode(withName: "ball") as? SKSpriteNode
+        middlePlatform = self.childNode(withName: "middlePlatform") as! SKSpriteNode
+        volcanoTip = self.childNode(withName: "volcanoTip") as! SKSpriteNode
+        planeRightTexture = SKTexture(imageNamed: "purplePlaneRight.png")
+        planeLeftTexture = SKTexture(imageNamed: "purplePlaneLeft.png")
+        gem = self.childNode(withName: "gem") as? SKSpriteNode
+        
+        
+        
+
+        //Delegate code for scene and handle collisions
+        self.physicsWorld.contactDelegate = self
+        
+       
+        
+        //Moving Plane Left and Right Only, This simply moves the plane back and forth
+        let planeMoveR = SKAction.moveBy(x: 825, y: 0.0, duration: 5.0)
+        
+        let planeMoveL = SKAction.moveBy(x: -825, y: 0.0, duration: 5.0)
+        
+        let sequenceMovePlane = SKAction.sequence([planeMoveR,planeMoveL])
+        plane.run(SKAction.repeatForever(sequenceMovePlane))
+        
+        
+          
+        
+        
+        
+        //Waterfall, last minute cool idea
+        
+        let waterfallColor = UIColor(red:0.4, green:0.8, blue:1.0, alpha:1.0)
+        
+        let waterfall1:SKEmitterNode = SKEmitterNode(fileNamed: "waterfall1")!
+        waterfall1.position = middlePlatform.position
+        
+        waterfall1.particleColor = waterfallColor
+        
+        addChild(waterfall1)
+        print("Waterfall added")
+        
+        
+        //Volcano Smoke, last minute cool idea
+        let volcanoSmoke:SKEmitterNode = SKEmitterNode(fileNamed: "volcanoSmoke")!
+        volcanoSmoke.position = volcanoTip.position
+       
+        addChild(volcanoSmoke)
+        print("Volcano Smoke added")
+        
+        
+        
+        
+        //Appearance of Gem after 60 seconds
+        
+        let delay1 = SKAction.wait(forDuration: 3.0)
+        let delay2 = SKAction.wait(forDuration: 6.0)
+        
+        let showGem = SKAction.run({
+            
+            let gem:SKSpriteNode = SKScene(fileNamed: "gem")!.childNode(withName: "gem")! as! SKSpriteNode
+            gem.removeFromParent() //remove from parent
+            self.addChild(gem) //not fired yet
+            gem.zPosition = 1
+            gem.position = self.plane!.position
+            
+            let angleInRadiansGem = Float(self.plane!.zRotation)
+            let speedGem = CGFloat(75.0)
+            let vxGem:CGFloat = CGFloat(cos(angleInRadiansGem)) * speedGem
+            let vyGem:CGFloat = CGFloat(sin(angleInRadiansGem)) * speedGem
+            //gem.physicsBody?.applyImpulse(CGVector.make(vxGem,vyGem))
+            gem.physicsBody?.applyImpulse(CGVector(dx: vxGem, dy: vyGem))
+            
+            
+            print("\(vxGem), \(vyGem)")
+            
+            gem.physicsBody?.collisionBitMask = wallMask | ballMask | rightBlockMask | leftBlockMask | mainCharMask | groundMask | gemMask
+            
+            gem.physicsBody?.contactTestBitMask = (gem.physicsBody?.collisionBitMask)! | leftBlockMask | rightBlockMask
+            
+            
+            gem.physicsBody?.contactTestBitMask = mainCharMask
+            
+            
+            
+            
+            })
+        
+        let delayShowGemRemove = SKAction.sequence([delay1,showGem,delay2])
+        run(SKAction.repeatForever(delayShowGemRemove))
+   
+
+
+        
+        
+
+        
+        
+        
+        }
+        //end didmovetoView
+    
+    
+    
+    
+    
+    
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+       /* Called when a touch begins */
+        
+        //Touches for cannon/shooter
+        touchLocation = touches.first!.location(in: self) //unwrap
+        
+                
+        
+   
+        
+        self.impulseMainCharacter()
+        
+        
+        
+
+        
+        
+        }
+    
+    
+    
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        /* touches Moves */
+        
+        touchLocation = touches.first!.location(in: self) //unwrap
+        
+        }
+    
+    
+    
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        
+        
+        //PAUSED THIS IS BALL SHOOTING
+        let ball:SKSpriteNode = SKScene(fileNamed: "Shooter")!.childNode(withName: "ball")! as! SKSpriteNode
+        
+        ball.removeFromParent() //remove from parent
+        self.addChild(ball) //not fired yet
+        ball.zPosition = 0 //cookie ball at top 0
+        ball.position = plane!.position
+        let angleInRadians = Float(plane!.zRotation)
+        let speed = CGFloat(75.0)
+        let vx:CGFloat = CGFloat(cos(angleInRadians)) * speed
+        let vy:CGFloat = CGFloat(sin(angleInRadians)) * speed
+        //ball.physicsBody?.applyImpulse(CGVector.make(vx,vy))
+        
+        ball.physicsBody?.applyImpulse(CGVector(dx: vx, dy: vy))
+        
+        
+        print("\(vx), \(vy)")
+                
+        
+        ball.physicsBody?.collisionBitMask = wallMask | ballMask | rightBlockMask | leftBlockMask | mainCharMask | groundMask
+        
+        
+        
+        
+        //ContactBitMask is a # defining which collisions we want to be notified about
+        ball.physicsBody?.contactTestBitMask = ball.physicsBody!.collisionBitMask | leftBlockMask | rightBlockMask
+        
+        //Want Main Char to go through coin, in later code when it collides coin object removes from parent, this seems to be ok and main char is not disappearing any more because of self destructing 20 sec code
+        
+        //ContactBitMask is a # defining which collisions we want to be notified about
+        boo.physicsBody?.contactTestBitMask = blueCoinMask | redCoinMask | whiteCoinMask
+        
+        
+        //Sound Effect for firing shooter
+  //self.runAction(SKAction.playSoundFileNamed("soundEffectCanon.wav", waitForCompletion: true))
+
+
+
+        
+        
+
+        
+    }
+    
+    
+    
+    
+    
+   
+    override func update(_ currentTime: CFTimeInterval) {
+
+        
+        
+        
+               
+            
+            self.motionManager.startAccelerometerUpdates()
+            self.motionManager.accelerometerUpdateInterval = 0.1
+        self.motionManager.startAccelerometerUpdates(to: OperationQueue.main){
+                (data, error) in
+                
+                
+                
+            let _:CGFloat = CGFloat(UserDefaults.standard.float(forKey: "slider_gravity"))
+
+            
+        //Upon updating score check if you can move to Game Over - This works but need delay
+        
+        moveToGameOver()
+        
+        
+}
+//end of update func
+    
+    
+    
+    //when two bodies contact each other
+    
+    
+    
+    func didBeginContact(contact: SKPhysicsContact) {
+        
+        //print("contact!")
+        //only ball cares about colliding with other objects
+        //one of them is a ball
+        //if bodyA is ballmask then set contactA or contactB
+        let ball = (contact.bodyA.categoryBitMask == ballMask) ? contact.bodyA : contact .bodyB
+        
+        //ball is contact A if so want it to be contactB
+        let other = (ball == contact.bodyA) ? contact.bodyB : contact.bodyA
+        
+    
+        
+        //React to collision
+        if other.categoryBitMask == rightBlockMask{
+            print("Projectile hit a right platform._____R!")
+            
+          
+            
+            
+            
+        }
+        else if other.categoryBitMask == leftBlockMask {
+            print("Projectile hit left platform.-------L")
+            
+        }
+            
+            
+            
+        
+        else if other.categoryBitMask == groundMask {
+            
+            
+            print("Projectile hit ground.------- ||")
+            //notes...going to have settings 0-30 for ball, default is 20 seconds
+            let delay = SKAction.wait(forDuration: 5.0)
+            let remove = SKAction.run({
+               contact.bodyB.node?.removeFromParent()
+            })
+           
+
+            
+            let delayThenRemove = SKAction.sequence([delay,remove])
+            run(delayThenRemove)
+            
+            
+
+            
+            
+
+            
+            
+            
+            
+            
+        }
+            
+        else if other.categoryBitMask == mainCharMask {
+            print("Projectile hit the main character.-------:)")
+            
+        }
+        //if a ball hits a ball
+        else if other.categoryBitMask == ballMask {
+            print("Projectile hit a another projectile.-----@")
+            
+        }
+        
+        
+        
+        //When main character collides with a coin
+        let char = (contact.bodyA.categoryBitMask == mainCharMask) ? contact.bodyA : contact .bodyB
+        
+        //char is contact A if so want it to be contactB
+        let other2 = (char == contact.bodyA) ? contact.bodyB : contact.bodyA
+        
+        
+        //react to collision
+        if other2.categoryBitMask == blueCoinMask{
+            //some code here
+            print("Boo hit a BLUE coin")
+
+            self.didHitBlueCoin(coinBlue: other2)
+            
+            }
+
+        //react to collision
+        if other2.categoryBitMask == redCoinMask{
+            
+            print("Boo hit a RED coin")
+            
+            self.didHitRedCoin(coinRed: other2)
+            
+        }
+        
+        //react to collision
+        if other2.categoryBitMask == whiteCoinMask{
+            
+            print("Boo hit a WHITE coin")
+            
+            self.didHitWhiteCoin(coinWhite: other2)
+            
+        }
+        
+        
+        //react to collision
+        if other2.categoryBitMask == gemMask{
+            print("Boo got the gem!")
+            
+            self.didGetRedGem(gemRed: other2)
+            
+        }
+    
+        
+        
+        
+        
+        
+        
+
+    
+                    
+        
+}  //End of Did Begin Contact
+    
+    
+    
+    
+
+    
+    
+    
+    
+    func didHitBlueCoin(coinBlue:SKPhysicsBody){
+        
+        
+        //need to fix blend mode 
+        let coinColor = UIColor(red:0.4, green:0.8, blue:1.0, alpha:1.0)
+        
+        
+        
+        let coinSpark:SKEmitterNode = SKEmitterNode(fileNamed: "CoinParticle")!
+        coinSpark.position = coinBlue.node!.position
+        //Need to make the color work, don't see it showing up
+        coinSpark.particleColor = coinColor
+        
+        self.addChild(coinSpark)
+        print("Spark added")
+        
+        //remove coin from screen
+        coinBlue.node?.removeFromParent()
+        print("Removed other2 node Coin from parent----------REMOVED")
+        
+        
+        
+        //If setting for sound is on play sound effects
+        if UserDefaults.standard.bool(forKey: "enabled_preference_sound")  {
+            
+            self.run(SKAction.playSoundFileNamed("Pickup_Coin_1.wav", waitForCompletion: true))
+            
+             }
+        
+
+        
+
+        scoreBlue += 1
+        scoreWhite += 0
+        scoreRed += 0
+        //scoreLabel.text = "\(score)"
+        print("Total Blue Score is: \(scoreBlue)")
+        
+        //update total score
+        score = scoreWhite + scoreRed + scoreBlue
+        print("Total All Coin Score is: \(score)")
+        
+        
+        if scoreBlue == 7 {
+        reportAchievementBlueCoin()
+        }
+
+        
+}
+    
+    
+    
+    
+    func didHitRedCoin(coinRed:SKPhysicsBody){
+        
+        
+        //add spark animation to coin
+        let coinColor = UIColor(red:0.98, green:0.86, blue:0.00, alpha:1.0)
+        
+        let coinSpark:SKEmitterNode = SKEmitterNode(fileNamed: "CoinParticle")!
+        coinSpark.position = coinRed.node!.position
+        //Need to make the color work, don't see it showing up
+        coinSpark.particleColor = coinColor
+        
+        self.addChild(coinSpark)
+        print("Spark added")
+        
+        //remove coin from screen
+        coinRed.node?.removeFromParent()
+        print("Removed other2 node Coin from parent----------REMOVED")
+        
+        
+        
+        //If setting for sound is on play sound effects
+        if UserDefaults.standard.bool(forKey: "enabled_preference_sound")  {
+            
+            self.run(SKAction.playSoundFileNamed("Pickup_Coin_1.wav", waitForCompletion: true))
+            
+        }
+        
+        
+        
+        
+        scoreBlue += 0
+        scoreWhite += 0
+        scoreRed += 1
+        //scoreLabel.text = "\(score)"
+        print("Total Red Score is: \(scoreRed)")
+        
+        //update total score
+        score = scoreWhite + scoreRed + scoreBlue
+        print("Total All Coin Score is: \(score)")
+        
+        if scoreRed == 7 {
+            reportAchievementRedCoin()
+        }
+
+        
+        
+    }
+
+    
+    
+    func didHitWhiteCoin(coinWhite:SKPhysicsBody){
+        
+        
+        //add spark animation to coin
+        let coinColor = UIColor(red:0.98, green:0.86, blue:0.00, alpha:1.0)
+        
+        let coinSpark:SKEmitterNode = SKEmitterNode(fileNamed: "CoinParticle")!
+        coinSpark.position = coinWhite.node!.position
+        //Need to make the color work, don't see it showing up
+        coinSpark.particleColor = coinColor
+        
+        self.addChild(coinSpark)
+        print("Spark added")
+        
+        //remove coin from screen
+        coinWhite.node?.removeFromParent()
+        print("Removed other2 node Coin from parent----------REMOVED")
+        
+        
+        
+        //If setting for sound is on play sound effects
+        if UserDefaults.standard.bool(forKey: "enabled_preference_sound")  {
+            
+            self.run(SKAction.playSoundFileNamed("Pickup_Coin_1.wav", waitForCompletion: true))
+            
+        }
+        
+        
+        
+        
+        scoreBlue += 0
+        scoreWhite += 1
+        scoreRed += 0
+        //scoreLabel.text = "\(score)"
+        print("Total White Score is: \(scoreWhite)")
+        
+        //update total score
+        score = scoreWhite + scoreRed + scoreBlue
+        print("Total All Coin Score is: \(score)")
+        
+        
+        if scoreWhite == 7 {
+            reportAchievementWhiteCoin()
+        }
+
+        
+        
+        
+    }
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    func impulseMainCharacter() {
+        //This is what makes the main character move up and sideways via the pulse feature
+
+        //LEFT/RIGHT Above Character
+        if touchLocation.y > boo.position.y && touchLocation.x < boo.position.x {
+            
+            boo.physicsBody!.applyImpulse(CGVector(dx: -400, dy: 700)) //UP
+            
+        }
+            
+        else if touchLocation.y > boo.position.y && touchLocation.x > boo.position.x {
+            boo.physicsBody!.applyImpulse(CGVector(dx: 400, dy: 700)) //DOWN
+        }
+        
+        
+        
+        //LEFT/RIGHT Below Character fast sideways and blast up
+        
+        if touchLocation.y < boo.position.y && touchLocation.x < boo.position.x {
+            
+            boo.physicsBody!.applyImpulse(CGVector(dx: -600, dy: 900)) //UP
+            
+        }
+            
+        else if touchLocation.y < boo.position.y && touchLocation.x > boo.position.x {
+            boo.physicsBody!.applyImpulse(CGVector(dx: 600, dy: 900)) //DOWN
+        }
+        
+        
+        
+        }
+    
+    
+    
+//func ball here
+    func impulseBall() {
+        
+        //Impulse value for all 'balls' to move around
+        ball.physicsBody!.applyImpulse(CGVector(dx: 900, dy: 900))
+        
+        
+    }
+    
+
+    
+    //Use this to transition to Game Over Scene
+    func moveToGameOver() {
+        
+        //saving score to NSUserDefaults
+        let x : Int = (score) // This int is your score
+        let myString = String(x) // This String is you score as a String
+        let defaults = UserDefaults.standard
+        defaults.set(myString, forKey : "Score") // Saving the String to NSUserDefaults
+        
+        print("-->Going to GameOver Screen")
+            
+            //Go to Game Over
+            if self.score == 21 {
+                //Go to GameOver Screen
+                
+                reportAchievementAllCoins()
+                
+                
+                //Also passing score variable to GameOver Scene.
+                //if let scene = GameOver2(fileNamed:"GameOver2")
+                
+                if let scene = GameOver(fileNamed:"GameOver") {
+                    // Configure the view.
+                    
+                    let skView = self.view!
+                    
+                    skView.showsFPS = true
+                    skView.showsNodeCount = true
+                    
+                    /* Sprite Kit applies additional optimizations to improve rendering performance */
+                    skView.ignoresSiblingOrder = false //seems to work with false
+                    
+                    /* Set the scale mode to scale to fit the window */
+                    scene.scaleMode = .aspectFill
+                    skView.presentScene(scene, transition: SKTransition.fade(withDuration: 3.0))
+                    
+                }
+                
+                
+                
+                
+                
+                
+                // Go to Game Over VC
+                //            self.removeAllChildren()
+                //            self.removeAllActions()
+                //            self.scene?.removeFromParent()
+                //            self.viewController?.performSegueWithIdentifier("GameOver", sender: viewController)
+                //
+                
+                
+                
+                
+            }
+                //end nested
+            else {
+              
+                print("Game not over yet")
+                return
+                
+            }
+            
+            
+            
+            
+            
+            
+        }
+    
+
+    
+    
+    func reportAchievementBlueCoin() {
+        
+        
+        let scoreAchievementBlue: GKAchievement = GKAchievement(identifier: "boo_03_bluecoins")
+        scoreAchievementBlue.percentComplete = 100
+        scoreAchievementBlue.showsCompletionBanner = true
+        
+        
+        GKAchievement.report([scoreAchievementBlue], withCompletionHandler: ({ (error:NSError?) -> Void in
+            guard error == nil else {
+                print(error!)
+                return
+            }
+            
+            print("Reported BlueCoin achievement.")
+            } as! (Error?) -> Void))
+    }
+    
+    
+    func reportAchievementWhiteCoin() {
+        
+        
+        let scoreAchievementWhite: GKAchievement = GKAchievement(identifier: "boo_02_whitecoins")
+        scoreAchievementWhite.percentComplete = 100
+        scoreAchievementWhite.showsCompletionBanner = true
+        
+        
+        GKAchievement.report([scoreAchievementWhite], withCompletionHandler: { (error:NSError?) -> Void in
+            guard error == nil else {
+                print(error ?? self.ball!)
+                return
+            }
+            
+            print("Reported WhiteCoin achievement.")
+            } as? (Error?) -> Void)
+    }
+    
+    
+    func reportAchievementRedCoin() {
+        
+        
+        let scoreAchievementRed: GKAchievement = GKAchievement(identifier: "boo_04_redcoins")
+        scoreAchievementRed.percentComplete = 100
+        scoreAchievementRed.showsCompletionBanner = true
+        
+        
+        GKAchievement.report([scoreAchievementRed], withCompletionHandler: { (error:NSError?) -> Void in
+            guard error == nil else {
+                print(error!)
+                return
+            }
+            
+            print("Reported RedCoin achievement.")
+            } as? (Error?) -> Void)
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    func reportAchievementAllCoins() {
+        
+        
+        let scoreAchievement1: GKAchievement = GKAchievement(identifier: "boo_01_allcoins")
+        scoreAchievement1.percentComplete = 100
+        scoreAchievement1.showsCompletionBanner = true
+
+        
+        GKAchievement.report([scoreAchievement1], withCompletionHandler: { (error:NSError?) -> Void in
+            guard error == nil else {
+                print(error!)
+                return
+            }
+            
+            print("Reported Total All Coins Collected achievement.")
+            } as? (Error?) -> Void)
+    }
+    
+    
+
+    
+    
+    func didGetRedGem(gemRed:SKPhysicsBody){
+        
+        
+        //add spark animation to coin
+        let gemColor = UIColor(red:1.00, green:0.00, blue:0.00, alpha:1.0)
+        
+        let gemRedSpark:SKEmitterNode = SKEmitterNode(fileNamed: "gemRedSpark")!
+        gemRedSpark.position = gemRed.node!.position
+        //Need to make the color work, don't see it showing up
+        gemRedSpark.particleColor = gemColor
+        
+        self.addChild(gemRedSpark)
+        print("Gem Red Spark added")
+        
+        //remove coin from screen
+        gemRed.node?.removeFromParent()
+        print("Removed GemRed parent----------REMOVED")
+        
+        
+        
+        //If setting for sound is on play sound effects--CHANGE GEM SOUND
+        if UserDefaults.standard.bool(forKey: "enabled_preference_sound")  {
+            
+            self.run(SKAction.playSoundFileNamed("Pickup_Coin_1.wav", waitForCompletion: true))
+            
+        }
+    
+        
+        
+        scoreRedGem += 1
+        print("Total Red Gem Score is: \(scoreRedGem)")
+
+        
+        if scoreRedGem == 3 {
+            reportAchievementRedGem()
+        }
+
+        
+        
+        
+        
+    }
+    
+    
+    
+    
+    
+    func reportAchievementRedGem() {
+        
+        
+        let scoreAchievement5: GKAchievement = GKAchievement(identifier: "boo_05_ThreeRedGems")
+        scoreAchievement5.percentComplete = 100
+        scoreAchievement5.showsCompletionBanner = true
+        
+        
+        GKAchievement.report([scoreAchievement5], withCompletionHandler: { (error:NSError?) -> Void in
+            guard error == nil else {
+                print(error!)
+                return
+            }
+            
+            print("Reported 3 Red Gems Collected.")
+            } as? (Error?) -> Void)
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+}
+
